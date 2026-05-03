@@ -275,6 +275,6 @@ struct Conversation { string otherUser; Message* top;
 - **Course:** Data Structures
 - **Project Type:** Semester Project
 - **Language:** C++
-- **IDE:** VS code
+- **IDE:** Visual Studio
 - **Type:** Console Application (no graphics)
 
