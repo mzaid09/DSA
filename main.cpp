@@ -10,7 +10,7 @@
  *   2. Add ALL .cpp files to Source Files (NOT .h files — those are auto-included)
  *   3. Press Ctrl+F5 to build and run
  *
- * FILE LIST TO ADD IN VISUAL STUDIO:
+
  *   Source Files:
  *     main.cpp
  *     UserManager.cpp
