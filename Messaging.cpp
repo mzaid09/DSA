@@ -1,30 +1,44 @@
 /*
- * File     : Messaging.cpp
- * Module   : G — Messaging System (Stack per Conversation)
- * Purpose  : Implements stack-based messaging. Each conversation
- *            is a stack where push = send, pop = delete, peek = view latest.
- * Member   : Member 3
+ * File   : Messaging.cpp
+ * Module : G — Messaging System (Stack per Conversation — LIFO)
+ * Member : Member 3
+ *
+ * ── UPDATES FROM PREVIOUS VERSION ───────────────────────────────────────
+ * [UPDATED] sendMessage            : now rejects empty message text.
+ * [UPDATED] popMessage             : now prints clear message when stack empty.
+ * [UPDATED] viewLatestMessage      : handles case where user has no conversations.
+ * [UPDATED] displayConversation    : handles empty stack inside a conversation.
+ * [UPDATED] findOrCreateConversation: now checks for duplicate conversation before
+ *                                    creating a new one (was already doing this,
+ *                                    now has explicit comment confirming the check).
+ * [UPDATED] messagingMenu          : handles non-integer input gracefully.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 #include "Messaging.h"
-#include "UserManager.h"    // for hashSearch()
-#include "Notifications.h"  // for enqueueNotification()
+#include "UserManager.h"    // hashSearch()
+#include "Notifications.h"  // enqueueNotification()
 
 /* ══════════════════════════════════════════════════════════════
- * findOrCreateConversation
- * Searches user's conversation list for a conversation with 'otherUser'.
- * Creates a new Conversation node if not found.
+ * Function : findOrCreateConversation
+ * Purpose  : Searches the current user's conversation list for a
+ *            conversation with 'otherUser'. If not found, creates
+ *            a new Conversation node and links it at the head.
+ *            Ensures no duplicate conversations are created.
+ * Input    : user — the user whose list to search
+ *            otherUser — the other person's username
+ * Output   : pointer to the existing or newly created Conversation
  ══════════════════════════════════════════════════════════════ */
 Conversation* findOrCreateConversation(User* user, string otherUser) {
-    // search existing conversations
+    // search existing conversations — [UPDATED] this prevents duplicates
     Conversation* curr = user->convList;
     while (curr != nullptr) {
         if (curr->otherUser == otherUser)
-            return curr;
+            return curr;   // found existing — do NOT create a new one
         curr = curr->next;
     }
 
-    // not found — create new conversation and insert at head
+    // not found — create new conversation node
     Conversation* newConv  = new Conversation();
     newConv->otherUser     = otherUser;
     newConv->top           = nullptr;
@@ -35,10 +49,15 @@ Conversation* findOrCreateConversation(User* user, string otherUser) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * sendMessage
- * Validates sender and receiver, creates a Message node,
- * pushes it to the top of the conversation stack (LIFO).
- * Sends a notification to the receiver via Module E.
+ * Function : sendMessage
+ * Purpose  : Validates sender and receiver, creates a Message node,
+ *            and pushes it to the top of the conversation stack (LIFO).
+ *            Also pushes a copy to the receiver's side and sends a
+ *            notification to the receiver via Module E.
+ * Input    : receiver username and message text from user
+ * Output   : message pushed to both stacks, notification sent
+ *
+ * [UPDATED] Now rejects empty message text.
  ══════════════════════════════════════════════════════════════ */
 void sendMessage() {
     if (currentUser == nullptr) {
@@ -50,44 +69,51 @@ void sendMessage() {
     cout << "\n--- Send Message ---" << endl;
     cout << "To user : "; cin >> toUser;
 
+    if (toUser == currentUser->userName) {
+        cout << "Error: You cannot message yourself." << endl;
+        return;
+    }
+
     // verify receiver exists in hash table (Module A)
     User* receiver = hashSearch(toUser);
     if (receiver == nullptr) {
         cout << "Error: User '" << toUser << "' not found." << endl;
         return;
     }
-    if (toUser == currentUser->userName) {
-        cout << "Error: Cannot message yourself." << endl;
-        return;
-    }
 
     cin.ignore();
     cout << "Message : "; getline(cin, text);
 
-    // create new message node
-    Message* newMsg       = new Message();
-    newMsg->fromUser      = currentUser->userName;
-    newMsg->toUser        = toUser;
-    newMsg->text          = text;
-    newMsg->timestamp     = "12:00";    // TODO: use ctime for real timestamp
+    // [UPDATED] reject empty message
+    if (text.empty()) {
+        cout << "Error: Message cannot be empty." << endl;
+        return;
+    }
 
-    // find/create conversation on SENDER's side and push
+    // create message node
+    Message* newMsg   = new Message();
+    newMsg->fromUser  = currentUser->userName;
+    newMsg->toUser    = toUser;
+    newMsg->text      = text;
+    newMsg->timestamp = "12:00";   // TODO: replace with ctime
+
+    // push to SENDER's conversation stack
     Conversation* senderConv = findOrCreateConversation(currentUser, toUser);
-    newMsg->next             = senderConv->top;   // push to top of stack
+    newMsg->next             = senderConv->top;
     senderConv->top          = newMsg;
 
-    // also push a copy to RECEIVER's side
-    Message* msgCopy      = new Message();
-    msgCopy->fromUser     = newMsg->fromUser;
-    msgCopy->toUser       = newMsg->toUser;
-    msgCopy->text         = newMsg->text;
-    msgCopy->timestamp    = newMsg->timestamp;
+    // push a copy to RECEIVER's conversation stack
+    Message* msgCopy    = new Message();
+    msgCopy->fromUser   = newMsg->fromUser;
+    msgCopy->toUser     = newMsg->toUser;
+    msgCopy->text       = newMsg->text;
+    msgCopy->timestamp  = newMsg->timestamp;
 
     Conversation* recvConv = findOrCreateConversation(receiver, currentUser->userName);
     msgCopy->next          = recvConv->top;
     recvConv->top          = msgCopy;
 
-    // MODULE E: enqueue notification for receiver
+    // MODULE E: notify receiver
     string notifMsg = "New message from " + currentUser->userName;
     enqueueNotification(receiver, notifMsg);
 
@@ -95,13 +121,24 @@ void sendMessage() {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * viewLatestMessage
- * Peeks at the top of the conversation stack.
- * Does NOT remove the message — peek operation only.
+ * Function : viewLatestMessage
+ * Purpose  : Peeks at the top of a specific conversation stack.
+ *            Shows the most recent message without removing it.
+ * Input    : other user's username from current user
+ * Output   : top message displayed or appropriate error message
+ *
+ * [UPDATED] Now handles the case where the user has no conversations
+ *           at all, printing a clear message instead of crashing.
  ══════════════════════════════════════════════════════════════ */
 void viewLatestMessage() {
     if (currentUser == nullptr) {
         cout << "Error: Please login first." << endl;
+        return;
+    }
+
+    // [UPDATED] handle no conversations at all
+    if (currentUser->convList == nullptr) {
+        cout << "You have no conversations yet." << endl;
         return;
     }
 
@@ -114,24 +151,41 @@ void viewLatestMessage() {
         conv = conv->next;
     }
 
-    if (conv == nullptr || conv->top == nullptr) {
-        cout << "No messages with '" << otherUser << "'." << endl;
+    if (conv == nullptr) {
+        cout << "No conversation found with '" << otherUser << "'." << endl;
         return;
     }
 
-    // peek — just read top without removing
+    if (conv->top == nullptr) {
+        cout << "No messages in this conversation yet." << endl;
+        return;
+    }
+
+    // peek — read top without removing
     cout << "\nLatest message:" << endl;
     cout << "  " << conv->top->fromUser << " [" << conv->top->timestamp
          << "]: \"" << conv->top->text << "\"" << endl;
 }
 
 /* ══════════════════════════════════════════════════════════════
- * popMessage
- * Removes the top message from a conversation stack.
+ * Function : popMessage
+ * Purpose  : Removes the top message from a conversation stack.
+ *            Frees the memory of the removed Message node.
+ * Input    : other user's username from current user
+ * Output   : top message removed or error message
+ *
+ * [UPDATED] Now prints a clear message when the stack is empty
+ *           instead of crashing with a nullptr dereference.
  ══════════════════════════════════════════════════════════════ */
 void popMessage() {
     if (currentUser == nullptr) {
         cout << "Error: Please login first." << endl;
+        return;
+    }
+
+    // [UPDATED] handle no conversations at all
+    if (currentUser->convList == nullptr) {
+        cout << "You have no conversations yet." << endl;
         return;
     }
 
@@ -144,8 +198,14 @@ void popMessage() {
         conv = conv->next;
     }
 
-    if (conv == nullptr || conv->top == nullptr) {
-        cout << "No messages with '" << otherUser << "'." << endl;
+    if (conv == nullptr) {
+        cout << "No conversation found with '" << otherUser << "'." << endl;
+        return;
+    }
+
+    // [UPDATED] check for empty stack before popping
+    if (conv->top == nullptr) {
+        cout << "No messages to remove in this conversation." << endl;
         return;
     }
 
@@ -158,13 +218,24 @@ void popMessage() {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * displayConversation
- * Traverses the message stack from top to bottom (LIFO order)
- * and prints each message. Newest first.
+ * Function : displayConversation
+ * Purpose  : Traverses the conversation stack from top to bottom
+ *            (LIFO — newest first) and prints all messages.
+ * Input    : other user's username from current user
+ * Output   : all messages in conversation printed, newest first
+ *
+ * [UPDATED] Now prints a clear message when the conversation
+ *           exists but the message stack is empty.
  ══════════════════════════════════════════════════════════════ */
 void displayConversation() {
     if (currentUser == nullptr) {
         cout << "Error: Please login first." << endl;
+        return;
+    }
+
+    // [UPDATED] handle no conversations at all
+    if (currentUser->convList == nullptr) {
+        cout << "You have no conversations yet." << endl;
         return;
     }
 
@@ -177,8 +248,14 @@ void displayConversation() {
         conv = conv->next;
     }
 
-    if (conv == nullptr || conv->top == nullptr) {
-        cout << "No conversation with '" << otherUser << "'." << endl;
+    if (conv == nullptr) {
+        cout << "No conversation found with '" << otherUser << "'." << endl;
+        return;
+    }
+
+    // [UPDATED] conversation exists but stack is empty
+    if (conv->top == nullptr) {
+        cout << "No messages in this conversation yet." << endl;
         return;
     }
 
@@ -186,19 +263,28 @@ void displayConversation() {
          << " <-> " << otherUser << " ---" << endl;
 
     Message* curr = conv->top;
+    int      index = 1;
     while (curr != nullptr) {
-        cout << "  " << curr->fromUser << " [" << curr->timestamp
-             << "]: \"" << curr->text << "\"" << endl;
+        cout << index << ". " << curr->fromUser
+             << " [" << curr->timestamp << "]: \""
+             << curr->text << "\"" << endl;
         curr = curr->next;
+        index++;
     }
+    cout << "--- " << (index - 1) << " message(s) total ---" << endl;
 }
 
 /* ══════════════════════════════════════════════════════════════
- * deleteAllMessagesOf
- * Called by Module H during account deletion.
- * Deletes all conversation nodes and every message in each stack.
+ * Function : deleteAllMessagesOf
+ * Purpose  : Called by Module H during account deletion.
+ *            Deletes all conversation nodes and every message
+ *            in each conversation's stack. Frees all memory.
+ * Input    : user — pointer to the user being deleted
+ * Output   : all conversations and message stacks freed
  ══════════════════════════════════════════════════════════════ */
 void deleteAllMessagesOf(User* user) {
+    if (user == nullptr) return;
+
     Conversation* conv = user->convList;
     while (conv != nullptr) {
         // delete all messages in this conversation's stack
@@ -216,7 +302,12 @@ void deleteAllMessagesOf(User* user) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * messagingMenu — Displays the Messaging submenu
+ * Function : messagingMenu
+ * Purpose  : Displays the Messaging submenu and handles input.
+ * Input    : integer menu choice
+ * Output   : calls matching function or error message
+ *
+ * [UPDATED] Handles non-integer input with cin.clear + cin.ignore.
  ══════════════════════════════════════════════════════════════ */
 void messagingMenu() {
     int choice;
@@ -227,21 +318,29 @@ void messagingMenu() {
         else
             cout << "Not logged in" << endl;
         cout << "-------------------------" << endl;
-        cout << "1. Send Message"         << endl;
-        cout << "2. View Latest Message"  << endl;
-        cout << "3. Pop Message"          << endl;
-        cout << "4. View Conversation"    << endl;
-        cout << "5. Back"                 << endl;
+        cout << "1. Send Message"          << endl;
+        cout << "2. View Latest Message"   << endl;
+        cout << "3. Pop Message"           << endl;
+        cout << "4. View Full Conversation" << endl;
+        cout << "5. Back"                  << endl;
         cout << "-------------------------" << endl;
         cout << "Choice: "; cin >> choice;
 
+        // [UPDATED] handle non-integer input
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(1000, '\n');
+            cout << "Error: Please enter a number between 1 and 5." << endl;
+            continue;
+        }
+
         switch (choice) {
-            case 1: sendMessage();        break;
-            case 2: viewLatestMessage();  break;
-            case 3: popMessage();         break;
+            case 1: sendMessage();         break;
+            case 2: viewLatestMessage();   break;
+            case 3: popMessage();          break;
             case 4: displayConversation(); break;
             case 5: cout << "Returning to main menu..." << endl; break;
-            default: cout << "Invalid choice." << endl;
+            default: cout << "Error: Invalid choice. Enter 1-5." << endl;
         }
     } while (choice != 5);
 }

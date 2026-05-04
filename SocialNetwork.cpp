@@ -1,29 +1,41 @@
 /*
- * File     : SocialNetwork.cpp
- * Module   : B — Social Network (Graph with Adjacency Lists)
- * Purpose  : Implements all graph operations for the friend system.
- *            Adjacency lists are stored as Edge* linked lists inside User nodes.
- * Member   : Member 1
+ * File   : SocialNetwork.cpp
+ * Module : B — Social Network (Undirected Graph — Adjacency List)
+ * Member : Member 1
+ *
+ * ── UPDATES FROM PREVIOUS VERSION ───────────────────────────────────────
+ * [UPDATED] addFriend   : now checks if user is trying to add themselves.
+ * [UPDATED] removeFriend: now prints "users are not friends" if no edge exists.
+ * [UPDATED] BFS         : now prints "user has no connections" when friend
+ *                         list is empty instead of silently ending.
+ * [UPDATED] DFS         : same as BFS — handles zero-friends case clearly.
+ * [UPDATED] removeAllEdgesOf: safely handles nullptr friend list (no crash).
+ * [UPDATED] socialNetworkMenu: handles non-integer input gracefully.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 #include "SocialNetwork.h"
-#include "UserManager.h"   // for hashSearch()
+#include "UserManager.h"   // hashSearch()
 
 /* ══════════════════════════════════════════════════════════════
- * addEdge (internal helper)
- * Adds a one-directional edge from 'fromUser' to 'toName'.
- * Does NOT check duplicates — caller must check first.
+ * Function : addEdge (internal helper — not in header)
+ * Purpose  : Adds a one-directional edge from fromUser → toName.
+ *            Inserts at the head of the adjacency list.
+ * Input    : fromUser pointer, toName string
+ * Output   : new Edge node linked into fromUser->friendList
  ══════════════════════════════════════════════════════════════ */
 static void addEdge(User* fromUser, string toName) {
-    Edge* newEdge       = new Edge();
-    newEdge->friendUserName = toName;
-    newEdge->next       = fromUser->friendList;  // insert at head
-    fromUser->friendList = newEdge;
+    Edge* newEdge            = new Edge();
+    newEdge->friendUserName  = toName;
+    newEdge->next            = fromUser->friendList;
+    fromUser->friendList     = newEdge;
 }
 
 /* ══════════════════════════════════════════════════════════════
- * alreadyFriends (internal helper)
- * Returns true if 'targetName' already exists in user's edge list.
+ * Function : alreadyFriends (internal helper — not in header)
+ * Purpose  : Checks if targetName already exists in user's edge list.
+ * Input    : user pointer, targetName string
+ * Output   : true if already friends, false otherwise
  ══════════════════════════════════════════════════════════════ */
 static bool alreadyFriends(User* user, string targetName) {
     Edge* curr = user->friendList;
@@ -35,9 +47,13 @@ static bool alreadyFriends(User* user, string targetName) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * addFriend
- * Verifies both users exist, checks no duplicate friendship,
- * then adds edges in BOTH directions (undirected graph).
+ * Function : addFriend
+ * Purpose  : Verifies both users exist, checks for duplicates, then
+ *            adds edges in BOTH directions (undirected graph).
+ * Input    : user1, user2 — usernames of the two users
+ * Output   : friendship added or appropriate error message
+ *
+ * [UPDATED] Now checks if user1 == user2 (self-friend attempt).
  ══════════════════════════════════════════════════════════════ */
 void addFriend(string user1, string user2) {
     if (currentUser == nullptr) {
@@ -45,27 +61,40 @@ void addFriend(string user1, string user2) {
         return;
     }
 
-    User* u1 = hashSearch(user1);
-    User* u2 = hashSearch(user2);
-
-    if (u1 == nullptr) { cout << "Error: User '" << user1 << "' not found." << endl; return; }
-    if (u2 == nullptr) { cout << "Error: User '" << user2 << "' not found." << endl; return; }
-    if (user1 == user2) { cout << "Error: Cannot add yourself as a friend." << endl; return; }
-
-    if (alreadyFriends(u1, user2)) {
-        cout << user1 << " and " << user2 << " are already friends." << endl;
+    // [UPDATED] prevent adding yourself as a friend
+    if (user1 == user2) {
+        cout << "Error: You cannot add yourself as a friend." << endl;
         return;
     }
 
-    addEdge(u1, user2);  // A → B
-    addEdge(u2, user1);  // B → A (undirected)
+    User* u1 = hashSearch(user1);
+    User* u2 = hashSearch(user2);
+
+    if (u1 == nullptr) {
+        cout << "Error: User '" << user1 << "' not found." << endl;
+        return;
+    }
+    if (u2 == nullptr) {
+        cout << "Error: User '" << user2 << "' not found." << endl;
+        return;
+    }
+
+    if (alreadyFriends(u1, user2)) {
+        cout << "Error: " << user1 << " and " << user2 << " are already friends." << endl;
+        return;
+    }
+
+    addEdge(u1, user2);   // A → B
+    addEdge(u2, user1);   // B → A (undirected — both directions)
 
     cout << "\n✓ " << user1 << " and " << user2 << " are now friends!" << endl;
 }
 
 /* ══════════════════════════════════════════════════════════════
- * removeEdge (internal helper)
- * Removes a one-directional edge for 'targetName' from user's list.
+ * Function : removeEdge (internal helper — not in header)
+ * Purpose  : Removes a one-directional edge for targetName from user's list.
+ * Input    : fromUser pointer, targetName string
+ * Output   : edge removed from fromUser->friendList
  ══════════════════════════════════════════════════════════════ */
 static void removeEdge(User* fromUser, string targetName) {
     Edge* curr = fromUser->friendList;
@@ -86,8 +115,13 @@ static void removeEdge(User* fromUser, string targetName) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * removeFriend
- * Removes edges in both directions between user1 and user2.
+ * Function : removeFriend
+ * Purpose  : Removes edges in both directions between user1 and user2.
+ * Input    : user1, user2 — usernames to disconnect
+ * Output   : friendship removed or error message
+ *
+ * [UPDATED] Now prints a clear message when the two users are not
+ *           actually friends (previously did nothing silently).
  ══════════════════════════════════════════════════════════════ */
 void removeFriend(string user1, string user2) {
     if (currentUser == nullptr) {
@@ -98,8 +132,18 @@ void removeFriend(string user1, string user2) {
     User* u1 = hashSearch(user1);
     User* u2 = hashSearch(user2);
 
-    if (u1 == nullptr || u2 == nullptr) {
-        cout << "Error: One or both users not found." << endl;
+    if (u1 == nullptr) {
+        cout << "Error: User '" << user1 << "' not found." << endl;
+        return;
+    }
+    if (u2 == nullptr) {
+        cout << "Error: User '" << user2 << "' not found." << endl;
+        return;
+    }
+
+    // [UPDATED] check they are actually friends before trying to remove
+    if (!alreadyFriends(u1, user2)) {
+        cout << "Error: " << user1 << " and " << user2 << " are not friends." << endl;
         return;
     }
 
@@ -110,27 +154,29 @@ void removeFriend(string user1, string user2) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * displayFriends
- * Traverses the user's Edge* friendList and prints each friend name.
+ * Function : displayFriends
+ * Purpose  : Traverses user's Edge* friendList and prints each name.
+ * Input    : userName — whose friends to display
+ * Output   : list of friend names and total count
  ══════════════════════════════════════════════════════════════ */
 void displayFriends(string userName) {
     User* u = hashSearch(userName);
     if (u == nullptr) {
-        cout << "User '" << userName << "' not found." << endl;
+        cout << "Error: User '" << userName << "' not found." << endl;
         return;
     }
 
     cout << "\nFriends of " << userName << ":" << endl;
-    Edge* curr = u->friendList;
+    Edge* curr  = u->friendList;
     int   count = 0;
 
     if (curr == nullptr) {
-        cout << "  No friends yet." << endl;
+        cout << "  " << userName << " has no friends yet." << endl;
         return;
     }
 
     while (curr != nullptr) {
-        cout << "  → " << curr->friendUserName << endl;
+        cout << "  -> " << curr->friendUserName << endl;
         count++;
         curr = curr->next;
     }
@@ -138,40 +184,51 @@ void displayFriends(string userName) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * BFS
- * Breadth-First Search from startUser.
- * Uses a simple array-based manual queue (no STL queue).
- * Visits all direct friends first, then their friends, etc.
+ * Function : BFS
+ * Purpose  : Breadth-First Search starting from startUser.
+ *            Uses a manual array-based queue (no STL queue).
+ *            Visits all direct friends first, then their friends.
+ * Input    : startUser — the username to start from
+ * Output   : users printed in breadth-first order
+ *
+ * [UPDATED] Now prints a clear message when the starting user
+ *           has no friends (previously just ended silently).
  ══════════════════════════════════════════════════════════════ */
 void BFS(string startUser) {
     User* start = hashSearch(startUser);
     if (start == nullptr) {
-        cout << "User '" << startUser << "' not found." << endl;
+        cout << "Error: User '" << startUser << "' not found." << endl;
         return;
     }
 
-    // Manual queue using an array of strings
+    // [UPDATED] check for zero friends before starting traversal
+    if (start->friendList == nullptr) {
+        cout << "User '" << startUser << "' has no connections to traverse." << endl;
+        return;
+    }
+
+    // manual queue using a string array (no STL)
     string bfsQueue[200];
     string visitedNames[200];
-    int    visitedCount  = 0;
+    int    visitedCount = 0;
     int    front = 0, rear = 0;
 
-    // Lambda to check if already visited
+    // helper lambda to check if already visited
     auto isVisited = [&](string name) -> bool {
         for (int i = 0; i < visitedCount; i++)
             if (visitedNames[i] == name) return true;
         return false;
     };
 
-    // Enqueue start
-    bfsQueue[rear++] = startUser;
+    // enqueue start user
+    bfsQueue[rear++]             = startUser;
     visitedNames[visitedCount++] = startUser;
 
     cout << "\nBFS Traversal from '" << startUser << "':" << endl;
 
     while (front < rear) {
         string current = bfsQueue[front++];
-        cout << "  " << current << endl;
+        cout << "  Visited: " << current << endl;
 
         User* currUser = hashSearch(current);
         if (currUser == nullptr) continue;
@@ -179,21 +236,24 @@ void BFS(string startUser) {
         Edge* edge = currUser->friendList;
         while (edge != nullptr) {
             if (!isVisited(edge->friendUserName)) {
-                bfsQueue[rear++] = edge->friendUserName;
+                bfsQueue[rear++]             = edge->friendUserName;
                 visitedNames[visitedCount++] = edge->friendUserName;
             }
             edge = edge->next;
         }
     }
+    cout << "BFS complete. " << visitedCount << " user(s) visited." << endl;
 }
 
 /* ══════════════════════════════════════════════════════════════
- * DFSHelper (internal recursive helper)
+ * Function : DFSHelper (internal recursive helper — not in header)
+ * Purpose  : Recursive DFS worker that tracks visited users.
+ * Input    : userName, visited array, visitedCount reference
+ * Output   : prints each user visited in depth-first order
  ══════════════════════════════════════════════════════════════ */
 static void DFSHelper(string userName, string visited[], int& visitedCount) {
-    // mark as visited
     visited[visitedCount++] = userName;
-    cout << "  " << userName << endl;
+    cout << "  Visited: " << userName << endl;
 
     User* u = hashSearch(userName);
     if (u == nullptr) return;
@@ -201,25 +261,35 @@ static void DFSHelper(string userName, string visited[], int& visitedCount) {
     Edge* edge = u->friendList;
     while (edge != nullptr) {
         bool seen = false;
-        for (int i = 0; i < visitedCount; i++)
+        for (int i = 0; i < visitedCount; i++) {
             if (visited[i] == edge->friendUserName) { seen = true; break; }
-
+        }
         if (!seen)
             DFSHelper(edge->friendUserName, visited, visitedCount);
-
         edge = edge->next;
     }
 }
 
 /* ══════════════════════════════════════════════════════════════
- * DFS
- * Depth-First Search from startUser.
- * Uses recursion — goes as deep as possible before backtracking.
+ * Function : DFS
+ * Purpose  : Depth-First Search from startUser using recursion.
+ *            Goes as deep as possible before backtracking.
+ * Input    : startUser — the username to start from
+ * Output   : users printed in depth-first order
+ *
+ * [UPDATED] Now prints a clear message when the starting user
+ *           has no friends (previously just ended silently).
  ══════════════════════════════════════════════════════════════ */
 void DFS(string startUser) {
     User* start = hashSearch(startUser);
     if (start == nullptr) {
-        cout << "User '" << startUser << "' not found." << endl;
+        cout << "Error: User '" << startUser << "' not found." << endl;
+        return;
+    }
+
+    // [UPDATED] check for zero friends before starting traversal
+    if (start->friendList == nullptr) {
+        cout << "User '" << startUser << "' has no connections to traverse." << endl;
         return;
     }
 
@@ -228,19 +298,28 @@ void DFS(string startUser) {
 
     cout << "\nDFS Traversal from '" << startUser << "':" << endl;
     DFSHelper(startUser, visited, visitedCount);
+    cout << "DFS complete. " << visitedCount << " user(s) visited." << endl;
 }
 
 /* ══════════════════════════════════════════════════════════════
- * removeAllEdgesOf
- * Called by Integration (Module H) when a user is deleted.
- * Visits every friend of the deleted user and removes the
- * reverse edge pointing back to the deleted user.
+ * Function : removeAllEdgesOf
+ * Purpose  : Called by Integration (Module H) during account deletion.
+ *            Removes this user from every friend's adjacency list,
+ *            then deletes this user's own edge list.
+ * Input    : userName — the user being deleted
+ * Output   : all edges involving this user removed
+ *
+ * [UPDATED] Now safely handles nullptr friend list (no crash when
+ *           the user had no friends at the time of deletion).
  ══════════════════════════════════════════════════════════════ */
 void removeAllEdgesOf(string userName) {
     User* u = hashSearch(userName);
-    if (u == nullptr) return;
 
-    // For each friend of this user, remove the reverse edge
+    // [UPDATED] safe null check — user may not exist or have no friends
+    if (u == nullptr) return;
+    if (u->friendList == nullptr) return;
+
+    // for each friend, remove the reverse edge pointing back to this user
     Edge* curr = u->friendList;
     while (curr != nullptr) {
         User* friendUser = hashSearch(curr->friendUserName);
@@ -249,7 +328,7 @@ void removeAllEdgesOf(string userName) {
         curr = curr->next;
     }
 
-    // Now delete this user's own edge list
+    // delete this user's own edge list
     curr = u->friendList;
     while (curr != nullptr) {
         Edge* temp = curr;
@@ -260,8 +339,12 @@ void removeAllEdgesOf(string userName) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- * socialNetworkMenu
- * Displays the Social Network submenu and handles user input.
+ * Function : socialNetworkMenu
+ * Purpose  : Displays the Social Network submenu and handles input.
+ * Input    : user menu choice (integer)
+ * Output   : calls matching function or prints error
+ *
+ * [UPDATED] Handles non-integer input with cin.clear() + cin.ignore().
  ══════════════════════════════════════════════════════════════ */
 void socialNetworkMenu() {
     int choice;
@@ -272,30 +355,37 @@ void socialNetworkMenu() {
         else
             cout << "Not logged in" << endl;
         cout << "------------------------------" << endl;
-        cout << "1. Add Friend"      << endl;
-        cout << "2. Remove Friend"   << endl;
-        cout << "3. View Friends"    << endl;
-        cout << "4. BFS Traversal"   << endl;
-        cout << "5. DFS Traversal"   << endl;
-        cout << "6. Back"            << endl;
+        cout << "1. Add Friend"    << endl;
+        cout << "2. Remove Friend" << endl;
+        cout << "3. View Friends"  << endl;
+        cout << "4. BFS Traversal" << endl;
+        cout << "5. DFS Traversal" << endl;
+        cout << "6. Back"          << endl;
         cout << "------------------------------" << endl;
         cout << "Choice: "; cin >> choice;
 
-        string u1, u2, name;
+        // [UPDATED] handle non-integer input
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(1000, '\n');
+            cout << "Error: Please enter a number between 1 and 6." << endl;
+            continue;
+        }
+
+        string u2, name;
         switch (choice) {
             case 1:
-                if (!currentUser) { cout << "Please login first." << endl; break; }
-                cout << "Your username   : " << currentUser->userName << endl;
-                cout << "Friend username : "; cin >> u2;
+                if (!currentUser) { cout << "Error: Please login first." << endl; break; }
+                cout << "Friend username: "; cin >> u2;
                 addFriend(currentUser->userName, u2);
                 break;
             case 2:
-                if (!currentUser) { cout << "Please login first." << endl; break; }
+                if (!currentUser) { cout << "Error: Please login first." << endl; break; }
                 cout << "Remove friend username: "; cin >> u2;
                 removeFriend(currentUser->userName, u2);
                 break;
             case 3:
-                cout << "Enter username: "; cin >> name;
+                cout << "Enter username to view friends: "; cin >> name;
                 displayFriends(name);
                 break;
             case 4:
@@ -307,7 +397,7 @@ void socialNetworkMenu() {
                 DFS(name);
                 break;
             case 6: cout << "Returning to main menu..." << endl; break;
-            default: cout << "Invalid choice." << endl;
+            default: cout << "Error: Invalid choice. Enter 1–6." << endl;
         }
     } while (choice != 6);
 }

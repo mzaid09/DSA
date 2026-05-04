@@ -1,19 +1,20 @@
 #pragma once
 /*
  * File     : globals.h
- * Purpose  : Central header file — defines ALL node structs and declares the
- *            global currentUser pointer. Every .cpp file includes this file.
- *            Do NOT include any other project header before this one.
+ * Purpose  : Central header — defines ALL node structs and declares
+ *            the global currentUser pointer. Every .cpp includes this.
+ *
+ * ── UPDATES ─────────────────────────────────────────────────────────────
+ * [UPDATED] Post struct: added likedBy[200] array + likedByCount integer
+ *           so PostManager can prevent a user from liking the same post twice.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 #include <iostream>
 #include <string>
 using namespace std;
 
-/* ═══════════════════════════════════════════════════════
-   FORWARD DECLARATIONS
-   (needed because structs reference each other)
-═══════════════════════════════════════════════════════ */
+/* ── Forward declarations ── */
 struct User;
 struct Post;
 struct Edge;
@@ -23,22 +24,23 @@ struct Message;
 struct Conversation;
 struct AVLNode;
 
+/* ══════════════════════════════════════════════════════
+   MODULE A — User Node (Hash Table)
+══════════════════════════════════════════════════════ */
 struct User {
-    string userName;         // unique key used for hashing
+    string userName;       // unique key used for hashing
     string password;
     string email;
     string bio;
     string lastActive;
 
-    Post*         postHead;       // head of this user's doubly linked post list
-    Edge*         friendList;     // head of this user's adjacency edge list
-    Notification* notifFront;     // front of this user's notification queue
-    Notification* notifRear;      // rear  of this user's notification queue
-    Conversation* convList;       // head of this user's conversation linked list
+    Post*         postHead;    // head of this user's doubly linked post list
+    Edge*         friendList;  // head of this user's adjacency edge list
+    Notification* notifFront;  // front of notification queue
+    Notification* notifRear;   // rear  of notification queue
+    Conversation* convList;    // head of conversation linked list
+    User*         next;        // next node in hash table chain (chaining)
 
-    User*         next;           // next node in hash table chain (chaining)
-
-    // Constructor — sets every pointer to nullptr safely
     User() {
         postHead   = nullptr;
         friendList = nullptr;
@@ -49,107 +51,101 @@ struct User {
     }
 };
 
-/* ═══════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════
    MODULE B — Edge Node (Graph adjacency list)
-═══════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════ */
 struct Edge {
-    string friendUserName;   // name of the friend this edge points to
-    Edge*  next;             // next edge in this user's adjacency list
-
+    string friendUserName;
+    Edge*  next;
     Edge() { next = nullptr; }
 };
 
-/* ═══════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════
    MODULE C — Post Node (Doubly Linked List)
-═══════════════════════════════════════════════════════ */
+   [UPDATED] likedBy[] + likedByCount added to prevent double-liking.
+══════════════════════════════════════════════════════ */
 struct Post {
-    string postID;           // unique ID, e.g. "P001"
+    string postID;
     string content;
-    string owner;            // userName of the post creator
+    string owner;
     int    likes;
 
-    Post*  next;             // forward  pointer (newer → older)
-    Post*  prev;             // backward pointer (older → newer)
+    string likedBy[200];   // [UPDATED] stores usernames who already liked
+    int    likedByCount;   // [UPDATED] how many users have liked this post
 
-    Post() { likes = 0; next = nullptr; prev = nullptr; }
+    Post*  next;           // forward  pointer (newer → older)
+    Post*  prev;           // backward pointer (older → newer)
+
+    Post() {
+        likes        = 0;
+        likedByCount = 0;
+        next         = nullptr;
+        prev         = nullptr;
+    }
 };
 
-/* ═══════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════
    MODULE D — Story Node (Circular Linked List)
-═══════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════ */
 struct Story {
     string userName;
     string storyContent;
-    Story* next;             // last node's next points back to head (circular)
-
+    Story* next;           // last node's next points back to head
     Story() { next = nullptr; }
 };
 
-/* ═══════════════════════════════════════════════════════
-   MODULE E — Notification Node (Queue)
-═══════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   MODULE E — Notification Node (Queue — FIFO)
+══════════════════════════════════════════════════════ */
 struct Notification {
     string message;
     string targetUser;
     string timestamp;
     Notification* next;
-
     Notification() { next = nullptr; }
 };
 
-/* ═══════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════
    MODULE F — AVL Tree Node
-═══════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════ */
 struct AVLNode {
-    string   key;            // userName OR postID
-    int      value;          // activity count OR likes count
+    string   key;      // userName OR postID
+    int      value;    // activity count OR likes count
     AVLNode* left;
     AVLNode* right;
     int      height;
-
     AVLNode() { value = 0; left = nullptr; right = nullptr; height = 1; }
 };
 
-/* ═══════════════════════════════════════════════════════
-   MODULE G — Message Node (Stack)
-═══════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   MODULE G — Message Node (Stack — LIFO)
+══════════════════════════════════════════════════════ */
 struct Message {
     string   fromUser;
     string   toUser;
     string   text;
     string   timestamp;
-    Message* next;           // stack pointer (top → bottom)
-
+    Message* next;         // stack pointer (top → bottom)
     Message() { next = nullptr; }
 };
 
-/* ═══════════════════════════════════════════════════════
-   MODULE G — Conversation Node (Linked list of stacks)
-═══════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   MODULE G — Conversation Node (linked list of message stacks)
+══════════════════════════════════════════════════════ */
 struct Conversation {
-    string        otherUser;     // the other person in this conversation
-    Message*      top;           // top of the message stack (most recent)
-    Conversation* next;          // next conversation in the list
-
+    string        otherUser;
+    Message*      top;         // top of message stack (most recent)
+    Conversation* next;
     Conversation() { top = nullptr; next = nullptr; }
 };
 
-/* ═══════════════════════════════════════════════════════
-   GLOBAL CONSTANTS
-═══════════════════════════════════════════════════════ */
-const int TABLE_SIZE = 100;       // hash table bucket count
+/* ── Global constants ── */
+const int TABLE_SIZE = 100;
 
-/* ═══════════════════════════════════════════════════════
-   GLOBAL CURRENT USER
-   Defined once in main.cpp — declared extern here so
-   every .cpp file can read and write it.
-═══════════════════════════════════════════════════════ */
+/* ── Global currentUser — defined once in main.cpp ── */
 extern User* currentUser;
 
-/* ═══════════════════════════════════════════════════════
-   GLOBAL STORY LIST (Module D — one shared circular list)
-   Defined in stories.cpp
-═══════════════════════════════════════════════════════ */
+/* ── Global story list — defined in Stories.cpp ── */
 extern Story* storyHead;
 extern Story* storyTail;
 extern int    storyCount;

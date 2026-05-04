@@ -1,24 +1,25 @@
 #pragma once
 /*
- * File     : Integration.h
- * Module   : H — Integration (Delete Account Cascade)
- * Purpose  : Declares the cleanupDeletedUser function which
- *            coordinates deletion across all 6 other modules.
- *            This is the glue that makes the system fully integrated.
- * Member   : Member 1
+ * File   : Integration.h
+ * Module : H — Integration (Delete Account Cascade)
+ * Purpose: Declares cleanupDeletedUser which coordinates deletion
+ *          across all 6 other modules in the correct order.
+ * Member : Member 1
  */
 
 #include "globals.h"
 
 /*
- * cleanupDeletedUser
- * Called by deleteUser() in UserManager.cpp.
- * Performs full cleanup across all modules in correct order:
- *   Step 1: Graph    — remove all edges of this user
- *   Step 2: Posts    — delete all posts and remove from AVL
- *   Step 3: AVL User — remove from user activity tree
- *   Step 4: Messages — delete all conversations and stacks
- *   Step 5: Stories  — remove user's stories from circular list
- *   Step 6: Notifs   — clear notification queue
+ * Function : cleanupDeletedUser
+ * Purpose  : Called by deleteUser() before the User node is freed.
+ *            Performs full cleanup in this exact order:
+ *            1. Remove all graph edges   (Module B)
+ *            2. Delete all posts         (Module C + F)
+ *            3. Remove from user AVL     (Module F)
+ *            4. Delete all messages      (Module G)
+ *            5. Remove stories           (Module D)
+ *            6. Clear notifications      (Module E)
+ * Input    : user — pointer to the User node being deleted
+ * Output   : all user data removed from every module
  */
 void cleanupDeletedUser(User* user);
