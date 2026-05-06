@@ -254,7 +254,6 @@ void likePost() {
     cout << "Post ID    : "; cin >> pid;
     cout << "Post owner : "; cin >> ownerName;
 
-    // [UPDATED] cannot like your own post
     if (ownerName == currentUser->userName) {
         cout << "Error: You cannot like your own post." << endl;
         return;
@@ -270,7 +269,6 @@ void likePost() {
     while (curr != nullptr) {
         if (curr->postID == pid) {
 
-            // [UPDATED] check likedBy[] to prevent double like
             for (int i = 0; i < curr->likedByCount; i++) {
                 if (curr->likedBy[i] == currentUser->userName) {
                     cout << "Error: You have already liked this post." << endl;
@@ -282,16 +280,18 @@ void likePost() {
             if (curr->likedByCount < 200) {
                 curr->likedBy[curr->likedByCount] = currentUser->userName;
                 curr->likedByCount++;
+
+                curr->likes++;
+                updatePostAVL(pid, curr->likes);
+
+                string notifMsg = currentUser->userName + " liked your post [" + pid + "]";
+                enqueueNotification(owner, notifMsg);
+
+                cout << "\n✓ You liked " << ownerName
+                     << "'s post! Total likes: " << curr->likes << endl;
+            } else {
+                cout << "Error: Like limit reached for this post." << endl;
             }
-
-            curr->likes++;
-            updatePostAVL(pid, curr->likes);   // MODULE F
-
-            string notifMsg = currentUser->userName + " liked your post [" + pid + "]";
-            enqueueNotification(owner, notifMsg);  // MODULE E
-
-            cout << "\n✓ You liked " << ownerName
-                 << "'s post! Total likes: " << curr->likes << endl;
             return;
         }
         curr = curr->next;
@@ -300,7 +300,6 @@ void likePost() {
     cout << "Error: Post '" << pid << "' not found for user '"
          << ownerName << "'." << endl;
 }
-
 /* ══════════════════════════════════════════════════════════════
  * Function : deleteAllPostsOf
  * Purpose  : Called by Module H during account deletion.
