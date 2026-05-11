@@ -13,7 +13,7 @@
  */
 
 #include "Notifications.h"
-
+#include <ctime> 
 /* ══════════════════════════════════════════════════════════════
  * Function : enqueueNotification
  * Purpose  : Creates a Notification node and adds it to the REAR
@@ -35,7 +35,11 @@ void enqueueNotification(User* targetUser, string message) {
     Notification* newNotif  = new Notification();
     newNotif->message       = message;
     newNotif->targetUser    = targetUser->userName;
-    newNotif->timestamp     = "12:00";   // TODO: replace with ctime for real timestamp
+    time_t now = time(0);
+    struct tm* ltm = localtime(&now);
+    char timeBuffer[6];
+    strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", ltm);
+    newNotif->timestamp = string(timeBuffer);
     newNotif->next          = nullptr;
 
     // add to REAR of queue (FIFO — oldest stays at front)

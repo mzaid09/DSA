@@ -18,7 +18,7 @@
 #include "Messaging.h"
 #include "UserManager.h"    // hashSearch()
 #include "Notifications.h"  // enqueueNotification()
-
+#include <ctime> 
 /* ══════════════════════════════════════════════════════════════
  * Function : findOrCreateConversation
  * Purpose  : Searches the current user's conversation list for a
@@ -95,7 +95,11 @@ void sendMessage() {
     newMsg->fromUser  = currentUser->userName;
     newMsg->toUser    = toUser;
     newMsg->text      = text;
-    newMsg->timestamp = "12:00";   // TODO: replace with ctime
+    time_t now = time(0);
+    struct tm* ltm = localtime(&now);
+    char timeBuffer[6];
+    strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", ltm);
+    newMsg->timestamp = string(timeBuffer);
 
     // push to SENDER's conversation stack
     Conversation* senderConv = findOrCreateConversation(currentUser, toUser);
@@ -174,6 +178,8 @@ void viewLatestMessage() {
  * Input    : other user's username from current user
  * Output   : top message removed or error message
  *
+ * 
+ * 
  * [UPDATED] Now prints a clear message when the stack is empty
  *           instead of crashing with a nullptr dereference.
  ══════════════════════════════════════════════════════════════ */
