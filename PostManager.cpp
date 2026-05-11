@@ -254,10 +254,7 @@ void likePost() {
     cout << "Post ID    : "; cin >> pid;
     cout << "Post owner : "; cin >> ownerName;
 
-    if (ownerName == currentUser->userName) {
-        cout << "Error: You cannot like your own post." << endl;
-        return;
-    }
+    
 
     User* owner = hashSearch(ownerName);
     if (owner == nullptr) {
